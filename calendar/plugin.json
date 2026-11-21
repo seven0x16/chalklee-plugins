@@ -1,0 +1,12 @@
+{
+  "id": "chalklee.calendar",
+  "publisher": "chalklee",
+  "name": "日历",
+  "version": "0.1.0",
+  "apiVersion": 1,
+  "summary": "查看日程安排",
+  "author": "ChalkLee",
+  "license": "MIT",
+  "entry": "index.html",
+  "permissions": []
+}

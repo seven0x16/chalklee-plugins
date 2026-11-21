@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>我的插件</title>
+  <style>
+    body { margin: 0; padding: 24px; color: var(--chalklee-text); background: var(--chalklee-surface); font: 15px/1.6 system-ui, sans-serif; }
+    button { padding: 6px 14px; border: 0; border-radius: 8px; color: var(--chalklee-on-accent); background: var(--chalklee-accent); font: inherit; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h1>我的插件</h1>
+  <p>已点击 <span id="count">0</span> 次</p>
+  <button id="add" type="button">点一下</button>
+  <script>
+    const count = document.getElementById("count");
+    chalklee.storage.get("count").then(saved => { count.textContent = saved ?? 0; });
+    document.getElementById("add").addEventListener("click", async () => {
+      const next = Number(count.textContent) + 1;
+      count.textContent = next;
+      await chalklee.storage.set("count", next);
+    });
+  </script>
+</body>
+</html>

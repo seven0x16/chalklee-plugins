@@ -1,0 +1,12 @@
+ChalkLee Plugins
+Copyright 2026 seven0x5e
+
+Licensed under the MIT License; see LICENSE.
+
+todo/, calendar/ and template/ are copies of the built-in plugins and the
+plugin template developed in the ChalkLee repository
+(https://github.com/seven0x16/chalklee), where they are part of ChalkLee under
+AGPL-3.0-only. The copyright holder also publishes them here under the MIT
+License.
+
+The ChalkLee name and logo are not licensed under the MIT License.

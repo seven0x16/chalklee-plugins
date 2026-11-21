@@ -1,0 +1,617 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>日历</title>
+  <style>
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    html, body { height: 100%; }
+    body { margin: 0; color: var(--chalklee-text); background: var(--chalklee-surface); font: 13px/20px -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; }
+    button, input { color: inherit; font: inherit; }
+    button { border: 0; background: transparent; cursor: pointer; }
+    button:disabled, input:disabled { cursor: default; opacity: .5; }
+    button:focus-visible, input:focus-visible { outline: 2px solid var(--chalklee-accent); outline-offset: 2px; }
+    input { border: 0.5px solid var(--chalklee-border); border-radius: 6px; outline: 0; background: var(--chalklee-surface); }
+    input:focus { border-color: var(--chalklee-accent); }
+    .layout { display: grid; grid-template-columns: minmax(0, 1fr) 280px; height: 100%; min-height: 520px; }
+    .month, .panel { min-width: 0; min-height: 0; }
+    .month { container-type: inline-size; display: flex; flex-direction: column; border-right: 0.5px solid var(--chalklee-border); }
+    .toolbar { flex: none; display: flex; align-items: center; gap: 8px; padding: 16px 12px 12px 16px; }
+    .toolbar h1 { flex: 1; margin: 0; font-size: 20px; font-weight: 600; line-height: 28px; white-space: nowrap; }
+    .month-actions { display: flex; align-items: center; gap: 4px; }
+    .nav, .today { display: grid; place-items: center; height: 28px; padding: 0; border: 0.5px solid var(--chalklee-border); border-radius: 14px; color: var(--chalklee-muted); background-color: var(--chalklee-background); }
+    .nav { width: 28px; }
+    .today { padding: 0 12px; color: var(--chalklee-text); }
+    .nav:hover, .today:hover { color: var(--chalklee-text); background-image: linear-gradient(var(--chalklee-hover), var(--chalklee-hover)); }
+    .weekdays, .grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+    .with-weeks .weekdays, .with-weeks .grid { grid-template-columns: 44px repeat(7, minmax(0, 1fr)); }
+    .weekdays { flex: none; height: 26px; align-items: center; border-bottom: 0.5px solid var(--chalklee-border); color: var(--chalklee-muted); font-size: 12px; text-align: right; }
+    .weekdays span { padding: 0 6px; }
+    .grid { flex: 1; min-height: 0; grid-template-rows: repeat(6, minmax(68px, 1fr)); }
+    .week, .day { min-width: 0; min-height: 0; border-right: 0.5px solid var(--chalklee-border); border-bottom: 0.5px solid var(--chalklee-border); }
+    .day:nth-last-child(-n+7), .week:nth-last-child(8) { border-bottom-width: 0; }
+    .month:not(.with-weeks) .day:nth-child(7n), .with-weeks .day:nth-child(8n) { border-right-width: 0; }
+    .week { padding: 5px 0 0; color: var(--chalklee-muted); font-size: 12px; line-height: 22px; text-align: center; white-space: nowrap; }
+    .day { display: flex; flex-direction: column; gap: 2px; overflow: hidden; padding: 4px 4px 4px 5px; border-top: 0; border-left: 0; border-radius: 0; text-align: left; }
+    .day.weekend { background-color: var(--chalklee-background); }
+    .day:hover { background-image: linear-gradient(var(--chalklee-hover), var(--chalklee-hover)); }
+    .day[aria-pressed="true"], .day[aria-pressed="true"]:hover { background: var(--chalklee-selection); }
+    .day:focus-visible { outline-offset: -2px; }
+    .day.outside > * { opacity: .5; }
+    .head { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 4px; height: 22px; white-space: nowrap; }
+    .lunar { color: var(--chalklee-muted); font-size: 12px; line-height: 16px; }
+    .lunar.first { box-shadow: 0 1px var(--chalklee-accent); }
+    .date { display: inline-flex; align-items: center; font-variant-numeric: tabular-nums; }
+    .day.weekend .date { color: var(--chalklee-muted); }
+    .day.current .number { display: grid; place-items: center; min-width: 22px; height: 22px; margin-right: 1px; border-radius: 11px; color: var(--chalklee-on-accent); background: var(--chalklee-accent); font-weight: 600; }
+    .chip { flex: none; display: flex; align-items: center; gap: 4px; overflow: hidden; height: 18px; padding: 0 2px; border-radius: 9px; font-size: 12px; line-height: 18px; }
+    .chip::before { content: ""; flex: none; width: 8px; height: 8px; border: 1.5px solid var(--chalklee-accent); border-radius: 50%; }
+    .chip.all-day { padding: 0 6px 0 4px; background: var(--chalklee-selection); }
+    .chip.all-day::before { background: var(--chalklee-accent); }
+    .day[aria-pressed="true"] .chip.all-day { background: var(--chalklee-surface); }
+    .chip-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .chip-time { flex: none; color: var(--chalklee-muted); font-variant-numeric: tabular-nums; }
+    .more { flex: none; overflow: hidden; padding: 0 2px; color: var(--chalklee-muted); font-size: 12px; line-height: 18px; text-overflow: ellipsis; white-space: nowrap; }
+    .panel { display: flex; flex-direction: column; padding: 16px 12px 12px; }
+    .panel-header { flex: none; padding: 0 4px; }
+    .panel-header h2 { margin: 0; font-size: 20px; font-weight: 600; line-height: 28px; }
+    .panel-meta { display: flex; align-items: center; gap: 12px; min-height: 20px; margin: 0 0 12px; color: var(--chalklee-muted); font-size: 12px; }
+    .composer { flex: none; display: grid; gap: 8px; }
+    .composer-text { width: 100%; height: 32px; padding: 0 10px; font-variant-numeric: tabular-nums; }
+    .composer-text::placeholder { color: var(--chalklee-muted); }
+    .composer-bottom { display: flex; align-items: center; gap: 8px; }
+    .time-input { width: 72px; height: 28px; padding: 0 8px; font-size: 12px; font-variant-numeric: tabular-nums; }
+    .time-input::placeholder, .event-time::placeholder { color: var(--chalklee-muted); }
+    .add { display: inline-flex; align-items: center; justify-content: center; gap: 4px; height: 28px; margin-left: auto; padding: 0 11px; border-radius: 6px; color: var(--chalklee-on-accent); background: var(--chalklee-accent); font-weight: 500; }
+    .events-head { flex: none; display: flex; align-items: center; gap: 6px; height: 28px; margin-top: 12px; padding: 0 4px; }
+    .events-head h3 { margin: 0; font-size: 13px; font-weight: 600; }
+    .events-head span { color: var(--chalklee-muted); font-size: 12px; }
+    ul { flex: 1; min-height: 0; overflow: auto; margin: 2px -4px 0; padding: 0 4px; list-style: none; scrollbar-width: thin; }
+    li { display: flex; align-items: center; gap: 4px; min-height: 36px; padding: 4px 2px 4px 4px; border-radius: 8px; }
+    li:hover, li:focus-within { background: var(--chalklee-hover); }
+    .event-time { flex: none; width: 50px; height: 28px; padding: 0 5px; border-color: transparent; color: var(--chalklee-muted); background: transparent; font-size: 12px; font-variant-numeric: tabular-nums; }
+    .event-text { flex: 1; min-width: 0; height: 28px; padding: 0 3px; border-color: transparent; background: transparent; text-overflow: ellipsis; }
+    .event-time:focus, .event-text:focus { border-color: var(--chalklee-accent); background: var(--chalklee-surface); }
+    .remove, .clear-term { flex: none; display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border-radius: 6px; color: var(--chalklee-muted); }
+    .remove { opacity: 0; pointer-events: none; }
+    li:hover .remove, li:focus-within .remove, .remove:focus-visible { opacity: 1; pointer-events: auto; }
+    .remove:hover, .clear-term:hover { color: var(--chalklee-text); background: var(--chalklee-hover); }
+    .empty { flex: 1; display: grid; place-items: center; min-height: 80px; color: var(--chalklee-muted); }
+    .message { flex: none; margin: 6px 4px 0; color: var(--chalklee-muted); font-size: 12px; line-height: 18px; }
+    .message:empty { display: none; }
+    .term { flex: none; margin: 8px -12px -12px; padding: 10px 16px 12px; border-top: 0.5px solid var(--chalklee-border); color: var(--chalklee-muted); font-size: 12px; }
+    .term-row { display: flex; align-items: center; gap: 8px; min-height: 28px; }
+    .term-row + .term-row { margin-top: 6px; }
+    .term-row > span { flex: none; }
+    .segmented { flex: 1; display: grid; grid-template-columns: 1fr 1fr; height: 28px; padding: 2px; border-radius: 6px; background: var(--chalklee-hover); }
+    .segmented button { padding: 0; border-radius: 4px; color: var(--chalklee-muted); font-size: 12px; }
+    .segmented button[aria-pressed="true"] { color: var(--chalklee-text); background: var(--chalklee-surface); box-shadow: 0 1px 2px rgb(0 0 0 / .12); }
+    .term label { flex: none; }
+    .date-field { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 6px; height: 28px; padding: 0 8px; border: 0.5px solid var(--chalklee-border); border-radius: 6px; color: var(--chalklee-text); font-size: 12px; font-variant-numeric: tabular-nums; }
+    .date-field:hover:not(:disabled) { background: var(--chalklee-hover); }
+    .date-field[aria-expanded="true"] { border-color: var(--chalklee-accent); }
+    .date-field.placeholder { color: var(--chalklee-muted); }
+    .date-field svg { flex: none; color: var(--chalklee-muted); }
+    .term-hint { display: block; margin-top: 4px; line-height: 18px; }
+    .popover { position: fixed; z-index: 10; padding: 6px; border: 0.5px solid var(--chalklee-border); border-radius: 12px; background: var(--chalklee-surface); box-shadow: 0 10px 28px rgb(0 0 0 / .16), 0 1px 3px rgb(0 0 0 / .08); font-size: 12px; }
+    .time-picker { width: 132px; }
+    .time-head { display: grid; grid-template-columns: 1fr 1fr; height: 26px; align-items: center; color: var(--chalklee-muted); text-align: center; }
+    .time-head .active { color: var(--chalklee-text); font-weight: 600; }
+    .time-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; height: 210px; }
+    .time-column { overflow: auto; overscroll-behavior: contain; scrollbar-width: none; }
+    .option { display: flex; align-items: center; justify-content: center; height: 30px; border-radius: 6px; cursor: pointer; font-variant-numeric: tabular-nums; }
+    .option:hover { background: var(--chalklee-hover); }
+    .option[aria-selected="true"], .option[aria-selected="true"]:hover { color: var(--chalklee-on-accent); background: var(--chalklee-accent); }
+    .no-time { margin-top: 5px; padding-top: 5px; border-top: 0.5px solid var(--chalklee-border); }
+    .date-picker { width: 226px; }
+    .picker-head { display: flex; align-items: center; height: 30px; padding-left: 8px; }
+    .picker-head strong { flex: 1; font-size: 13px; font-weight: 600; }
+    .picker-nav { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border-radius: 6px; color: var(--chalklee-muted); }
+    .picker-nav:hover { color: var(--chalklee-text); background: var(--chalklee-hover); }
+    .picker-week, .picker-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); text-align: center; }
+    .picker-week { height: 26px; align-items: center; color: var(--chalklee-muted); }
+    .picker-day { height: 30px; padding: 0; border-radius: 6px; font-variant-numeric: tabular-nums; }
+    .picker-day:hover { background: var(--chalklee-hover); }
+    .picker-day:focus-visible { outline-offset: -2px; }
+    .picker-day.outside { color: var(--chalklee-muted); opacity: .6; }
+    .picker-day.current { color: var(--chalklee-accent); font-weight: 600; }
+    .picker-day[aria-selected="true"], .picker-day[aria-selected="true"]:hover { color: var(--chalklee-on-accent); background: var(--chalklee-accent); opacity: 1; }
+    @media (hover: none) { .remove { opacity: 1; pointer-events: auto; } }
+    @container (max-width: 840px) { .chip-time { display: none; } }
+    @container (max-width: 480px) { .lunar { display: none; } .head { justify-content: flex-end; } }
+    @media (max-width: 720px) {
+      html, body { height: auto; }
+      .layout { grid-template-columns: minmax(0, 1fr); height: auto; }
+      .month { border-right: 0; border-bottom: 0.5px solid var(--chalklee-border); }
+      .panel { min-height: 360px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="layout">
+    <section class="month" id="month" aria-label="月历">
+      <div class="toolbar">
+        <h1 id="title" aria-live="polite"></h1>
+        <div class="month-actions">
+          <button class="nav" id="previous" type="button" title="上个月" aria-label="上个月"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button>
+          <button class="today" id="today" type="button">今天</button>
+          <button class="nav" id="next" type="button" title="下个月" aria-label="下个月"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button>
+        </div>
+      </div>
+      <div class="weekdays" id="weekdays" aria-hidden="true"></div>
+      <div class="grid" id="grid" aria-label="选择日期"></div>
+    </section>
+    <aside class="panel" aria-label="当天安排">
+      <header class="panel-header">
+        <h2 id="day-title"></h2>
+        <p class="panel-meta"><span id="day-weekday"></span><span id="day-week"></span></p>
+      </header>
+      <form class="composer" id="form">
+        <input class="composer-text" id="text" type="text" maxlength="100" placeholder="输入这一天的安排" aria-label="安排内容" autocomplete="off" disabled>
+        <div class="composer-bottom">
+          <input class="time-input" id="time" type="text" inputmode="numeric" maxlength="5" placeholder="时间" aria-label="时间，可不填" autocomplete="off" disabled>
+          <button class="add" id="add" type="submit" disabled><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M12 5v14"/></svg>添加</button>
+        </div>
+      </form>
+      <div class="events-head"><h3>安排</h3><span id="event-count"></span></div>
+      <ul id="events"></ul>
+      <div class="empty" id="empty">这一天还没有安排</div>
+      <p class="message" id="message" role="status"></p>
+      <footer class="term">
+        <div class="term-row">
+          <span id="first-day-label">每周开始</span>
+          <div class="segmented" role="group" aria-labelledby="first-day-label">
+            <button id="start-monday" type="button" aria-pressed="true" disabled>周一</button>
+            <button id="start-sunday" type="button" aria-pressed="false" disabled>周日</button>
+          </div>
+        </div>
+        <div class="term-row">
+          <label for="term">开学日期</label>
+          <button class="date-field placeholder" id="term" type="button" aria-haspopup="dialog" aria-expanded="false" disabled><span id="term-value"></span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v4M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg></button>
+          <button class="clear-term" id="clear-term" type="button" title="清除开学日期" aria-label="清除开学日期" hidden><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+        </div>
+        <span class="term-hint" id="term-hint">设置后显示教学周</span>
+      </footer>
+    </aside>
+  </main>
+  <div class="popover" id="popover" hidden></div>
+  <script>
+    const $ = id => document.getElementById(id);
+    const WEEKDAYS = ["一", "二", "三", "四", "五", "六", "日"];
+    const CHEVRON = direction => `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${direction < 0 ? "m15 18-6-6 6-6" : "m9 18 6-6-6-6"}"/></svg>`;
+    const CROSS = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>';
+    const DAY_MS = 86_400_000;
+    const MAX_DAY_LINES = 2;
+    const WEEKS_SHOWN = 6;
+    const LUNAR = new Intl.DateTimeFormat("zh-CN-u-ca-chinese-nu-latn", { month: "long", day: "numeric" });
+    const LUNAR_TENS = ["初", "十", "廿"], LUNAR_DIGITS = ["十", "一", "二", "三", "四", "五", "六", "七", "八", "九"];
+    const pad = value => String(value).padStart(2, "0");
+    const dateKey = date => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+    const parseKey = key => { const [year, month, day] = key.split("-").map(Number); return new Date(year, month - 1, day); };
+    const dayNumber = date => Math.floor(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / DAY_MS);
+    const weekStartOf = date => new Date(date.getFullYear(), date.getMonth(), date.getDate() - (date.getDay() - firstDay + 7) % 7);
+    const orderedWeekdays = () => firstDay ? WEEKDAYS : ["日", ...WEEKDAYS.slice(0, 6)];
+    const validDateKey = key => typeof key === "string" && /^\d{4}-\d{2}-\d{2}$/.test(key) && dateKey(parseKey(key)) === key;
+    const validTime = time => typeof time === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(time) ? time : "";
+    const parseTime = value => {
+      if (!value.trim()) return "";
+      const match = value.trim().match(/^(\d{1,2})(?:[:：.]?(\d{2}))?$/);
+      return match && validTime(`${pad(match[1])}:${match[2] ?? "00"}`) || null;
+    };
+    const inMonth = (year, month, day) => new Date(year, month, Math.min(day, new Date(year, month + 1, 0).getDate()));
+    const element = (tag, className, textContent = "") => Object.assign(document.createElement(tag), { className, textContent });
+    const HOURS = Array.from({ length: 24 }, (_, hour) => pad(hour));
+    const MINUTES = Array.from({ length: 12 }, (_, index) => pad(index * 5));
+    const DEFAULT_TIME = ["08", "00"];
+    const todayKey = dateKey(new Date());
+    let shown = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    let selected = todayKey;
+    let events = {};
+    let termStart = null;
+    let firstDay = 1;
+    let closePopover = null;
+    let popoverAnchor = null;
+
+    const say = text => { $("message").textContent = text; };
+    const failed = error => say(error.message);
+    const saveEvents = () => chalklee.storage.set("events", events).then(() => say(""), failed);
+    const eventsOn = key => [...(events[key] ?? [])].sort((a, b) => a.time.localeCompare(b.time));
+    const lunarDay = day => day === 10 ? "初十" : day === 20 ? "二十" : day === 30 ? "三十" : LUNAR_TENS[Math.floor(day / 10)] + LUNAR_DIGITS[day % 10];
+    const lunarOf = date => {
+      const parts = Object.fromEntries(LUNAR.formatToParts(date).map(part => [part.type, part.value]));
+      const day = Number(parts.day);
+      return { first: day === 1, text: day === 1 ? parts.month.replace("十一月", "冬月").replace("十二月", "腊月") : lunarDay(day) };
+    };
+    const teachingWeek = date => {
+      if (!termStart) return null;
+      const week = Math.floor((dayNumber(weekStartOf(date)) - dayNumber(weekStartOf(parseKey(termStart)))) / 7) + 1;
+      return week >= 1 ? week : null;
+    };
+
+    function steppedDate(key, date) {
+      const days = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 }[key];
+      if (days) return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
+      if (key === "PageUp" || key === "PageDown") return inMonth(date.getFullYear(), date.getMonth() + (key === "PageUp" ? -1 : 1), date.getDate());
+      if (key !== "Home" && key !== "End") return null;
+      const start = weekStartOf(date);
+      return new Date(start.getFullYear(), start.getMonth(), start.getDate() + (key === "End" ? 6 : 0));
+    }
+
+    function showPopover(anchor, className, content, onClose) {
+      closePopover?.();
+      const box = $("popover"), edge = 8, gap = 4;
+      box.className = `popover ${className}`;
+      box.replaceChildren(...content);
+      box.hidden = false;
+      const area = anchor.getBoundingClientRect();
+      const fitsBelow = area.bottom + gap + box.offsetHeight <= window.innerHeight - edge;
+      box.style.top = `${fitsBelow ? area.bottom + gap : Math.max(edge, area.top - gap - box.offsetHeight)}px`;
+      box.style.left = `${Math.max(edge, Math.min(area.left, window.innerWidth - box.offsetWidth - edge))}px`;
+      popoverAnchor = anchor;
+      closePopover = () => {
+        box.hidden = true;
+        box.replaceChildren();
+        closePopover = popoverAnchor = null;
+        onClose?.();
+      };
+    }
+
+    /** A time you can type, or pick hour and minute apart; typing covers minutes between the five-minute steps. */
+    function timeField(input, commit) {
+      let saved = input.value, column = 0, columns = [], heads = [];
+      input.setAttribute("role", "combobox");
+      input.setAttribute("aria-haspopup", "dialog");
+      input.setAttribute("aria-expanded", "false");
+      const isOpen = () => popoverAnchor === input;
+      const parts = () => (parseTime(input.value) || saved || "").split(":");
+      const sync = reveal => {
+        const shown = parts();
+        columns.forEach((options, index) => {
+          heads[index].classList.toggle("active", index === column);
+          for (const option of options) {
+            const selected = option.dataset.part === shown[index];
+            option.setAttribute("aria-selected", String(selected));
+            if (selected && reveal) option.scrollIntoView?.({ block: "nearest" });
+          }
+        });
+      };
+      const setPart = (index, value) => {
+        const [hour, minute] = parts();
+        const next = index ? [hour || DEFAULT_TIME[0], value] : [value, minute || DEFAULT_TIME[1]];
+        input.value = next.join(":");
+        sync(true);
+      };
+      const settle = picked => {
+        const value = parseTime(input.value);
+        input.value = value ?? saved;
+        if (value === null || value === saved) return;
+        saved = value;
+        commit(value, picked);
+      };
+      const finish = () => { closePopover(); settle(true); };
+      const open = () => {
+        if (isOpen()) return;
+        column = 0;
+        const body = element("div", "");
+        body.addEventListener("mousedown", event => event.preventDefault());
+        const head = element("div", "time-head");
+        heads = ["时", "分"].map(name => element("span", "", name));
+        head.append(...heads);
+        const grid = element("div", "time-columns");
+        const lists = [[HOURS, "hour", "时"], [MINUTES, "minute", "分"]].map(([values, name, label], index) => {
+          const list = element("div", "time-column");
+          list.setAttribute("role", "listbox");
+          list.setAttribute("aria-label", label);
+          list.append(...values.map(value => {
+            const option = element("div", "option", value);
+            option.dataset.part = value;
+            option.dataset[name] = value;
+            option.setAttribute("role", "option");
+            option.addEventListener("click", () => {
+              setPart(index, value);
+              if (index) finish(); else { column = 1; sync(); }
+            });
+            return option;
+          }));
+          return list;
+        });
+        grid.append(...lists);
+        columns = lists.map(list => [...list.children]);
+        const clear = element("div", "no-time");
+        const noTime = element("div", "option", "全天");
+        noTime.addEventListener("click", () => { input.value = ""; finish(); });
+        clear.append(noTime);
+        body.append(head, grid, clear);
+        showPopover(input, "time-picker", [body], () => input.setAttribute("aria-expanded", "false"));
+        $("popover").setAttribute("role", "dialog");
+        $("popover").setAttribute("aria-label", "选择时间");
+        input.setAttribute("aria-expanded", "true");
+        sync();
+        const shown = parts();
+        lists.forEach((list, index) => {
+          const near = columns[index].filter(option => option.dataset.part <= (shown[index] || DEFAULT_TIME[index])).pop();
+          list.scrollTop = near.offsetTop - list.offsetTop - near.offsetHeight;
+        });
+      };
+      input.addEventListener("focus", () => { saved = input.value; });
+      input.addEventListener("click", open);
+      input.addEventListener("input", () => { open(); sync(true); });
+      input.addEventListener("blur", () => { if (isOpen()) closePopover(); settle(false); });
+      input.addEventListener("change", () => { if (isOpen()) closePopover(); settle(false); });
+      input.addEventListener("keydown", event => {
+        if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+          event.preventDefault();
+          if (!isOpen()) { open(); return; }
+          const values = column ? MINUTES : HOURS, step = event.key === "ArrowDown" ? 1 : -1;
+          const current = values.indexOf(parts()[column] || DEFAULT_TIME[column]);
+          setPart(column, values[Math.max(0, Math.min(values.length - 1, current + step))]);
+        } else if ((event.key === "ArrowLeft" || event.key === "ArrowRight") && isOpen()) {
+          event.preventDefault();
+          column = event.key === "ArrowLeft" ? 0 : 1;
+          sync();
+        } else if (event.key === "Enter" && isOpen()) {
+          event.preventDefault();
+          finish();
+        } else if (event.key === "Escape") {
+          if (isOpen()) closePopover();
+          input.value = saved;
+        }
+      });
+    }
+
+    function openDatePicker() {
+      const trigger = $("term");
+      let active = termStart ? parseKey(termStart) : new Date();
+      const title = element("strong", "");
+      const shift = (direction, label) => {
+        const button = element("button", "picker-nav");
+        button.type = "button";
+        button.innerHTML = CHEVRON(direction);
+        button.title = label;
+        button.setAttribute("aria-label", label);
+        button.addEventListener("click", () => {
+          active = inMonth(active.getFullYear(), active.getMonth() + direction, active.getDate());
+          draw();
+        });
+        return button;
+      };
+      const head = element("div", "picker-head");
+      head.append(title, shift(-1, "上个月"), shift(1, "下个月"));
+      const week = element("div", "picker-week");
+      week.setAttribute("aria-hidden", "true");
+      week.append(...orderedWeekdays().map(name => element("span", "", name)));
+      const grid = element("div", "picker-grid");
+      const draw = focus => {
+        title.textContent = `${active.getFullYear()} 年 ${active.getMonth() + 1} 月`;
+        const first = weekStartOf(new Date(active.getFullYear(), active.getMonth(), 1)), activeKey = dateKey(active);
+        grid.replaceChildren(...Array.from({ length: WEEKS_SHOWN * 7 }, (_, index) => {
+          const date = new Date(first.getFullYear(), first.getMonth(), first.getDate() + index), key = dateKey(date);
+          const day = element("button", `picker-day${date.getMonth() === active.getMonth() ? "" : " outside"}${key === todayKey ? " current" : ""}`, date.getDate());
+          day.type = "button";
+          day.tabIndex = key === activeKey ? 0 : -1;
+          day.dataset.date = key;
+          day.setAttribute("aria-selected", String(key === termStart));
+          day.setAttribute("aria-label", `${date.getFullYear()} 年 ${date.getMonth() + 1} 月 ${date.getDate()} 日`);
+          day.addEventListener("click", () => { closePopover(); setTerm(key); trigger.focus(); });
+          day.addEventListener("keydown", event => {
+            const next = steppedDate(event.key, date);
+            if (!next) return;
+            event.preventDefault();
+            active = next;
+            draw(true);
+          });
+          return day;
+        }));
+        if (focus) grid.querySelector('[tabindex="0"]')?.focus();
+      };
+      draw();
+      showPopover(trigger, "date-picker", [head, week, grid], () => trigger.setAttribute("aria-expanded", "false"));
+      $("popover").setAttribute("role", "dialog");
+      $("popover").setAttribute("aria-label", "选择开学日期");
+      trigger.setAttribute("aria-expanded", "true");
+      grid.querySelector('[tabindex="0"]')?.focus();
+    }
+
+    function selectDate(date, focus = false) {
+      selected = dateKey(date);
+      shown = new Date(date.getFullYear(), date.getMonth(), 1);
+      render();
+      if (focus) document.querySelector(`.day[data-date="${selected}"]`)?.focus();
+    }
+
+    function changeMonth(offset) {
+      selectDate(inMonth(shown.getFullYear(), shown.getMonth() + offset, parseKey(selected).getDate()));
+    }
+
+    function renderGrid() {
+      $("title").textContent = `${shown.getFullYear()} 年 ${shown.getMonth() + 1} 月`;
+      $("month").classList.toggle("with-weeks", Boolean(termStart));
+      $("weekdays").replaceChildren(...[...(termStart ? [""] : []), ...orderedWeekdays().map(name => `周${name}`)].map(name => Object.assign(document.createElement("span"), { textContent: name })));
+      const first = weekStartOf(shown), cells = [];
+      for (let index = 0; index < WEEKS_SHOWN * 7; index++) {
+        const date = new Date(first.getFullYear(), first.getMonth(), first.getDate() + index), key = dateKey(date);
+        if (termStart && index % 7 === 0) {
+          const week = teachingWeek(date);
+          cells.push(element("span", "week", week ? `第${week}周` : ""));
+        }
+        const cell = document.createElement("button");
+        cell.type = "button";
+        cell.className = `day${date.getMonth() === shown.getMonth() ? "" : " outside"}${key === todayKey ? " current" : ""}${date.getDay() % 6 === 0 ? " weekend" : ""}`;
+        cell.dataset.date = key;
+        cell.setAttribute("aria-pressed", String(key === selected));
+        const list = eventsOn(key);
+        cell.setAttribute("aria-label", `${date.getFullYear()} 年 ${date.getMonth() + 1} 月 ${date.getDate()} 日，周${WEEKDAYS[(date.getDay() + 6) % 7]}${list.length ? `，${list.length} 项安排` : ""}`);
+        const lunar = lunarOf(date);
+        const head = document.createElement("span");
+        head.className = "head";
+        const day = document.createElement("span");
+        day.className = "date";
+        day.append(...(date.getDate() === 1 ? [`${date.getMonth() + 1}月`] : []), Object.assign(document.createElement("span"), { className: "number", textContent: date.getDate() }), "日");
+        head.append(Object.assign(document.createElement("span"), { className: `lunar${lunar.first ? " first" : ""}`, textContent: lunar.text }), day);
+        cell.append(head);
+        const lines = list.length > MAX_DAY_LINES ? MAX_DAY_LINES - 1 : MAX_DAY_LINES;
+        for (const event of list.slice(0, lines)) {
+          const chip = document.createElement("span");
+          chip.className = `chip${event.time ? "" : " all-day"}`;
+          chip.title = `${event.time ? `${event.time} ` : ""}${event.text}`;
+          chip.append(Object.assign(document.createElement("span"), { className: "chip-text", textContent: event.text }));
+          if (event.time) chip.append(Object.assign(document.createElement("span"), { className: "chip-time", textContent: event.time }));
+          cell.append(chip);
+        }
+        if (list.length > lines) cell.append(Object.assign(document.createElement("span"), { className: "more", textContent: `还有 ${list.length - lines} 项` }));
+        cell.addEventListener("click", () => selectDate(date, true));
+        cell.addEventListener("keydown", event => {
+          const next = steppedDate(event.key, date);
+          if (!next) return;
+          event.preventDefault();
+          selectDate(next, true);
+        });
+        cells.push(cell);
+      }
+      $("grid").replaceChildren(...cells);
+    }
+
+    function eventRow(event, key) {
+      const line = document.createElement("li");
+      line.dataset.id = event.id;
+      const time = document.createElement("input");
+      time.className = "event-time";
+      time.type = "text";
+      time.inputMode = "numeric";
+      time.maxLength = 5;
+      time.autocomplete = "off";
+      time.value = event.time;
+      time.placeholder = "全天";
+      time.setAttribute("aria-label", `修改“${event.text}”的时间`);
+      timeField(time, (next, picked) => {
+        if (next !== event.time) { event.time = next; render(); void saveEvents(); }
+        if (picked) [...$("events").children].find(row => row.dataset.id === event.id)?.querySelector(".event-time")?.focus();
+      });
+      const text = document.createElement("input");
+      text.className = "event-text";
+      text.value = event.text;
+      text.maxLength = 100;
+      text.setAttribute("aria-label", "安排内容");
+      let cancelled = false;
+      text.addEventListener("focus", () => { cancelled = false; });
+      text.addEventListener("keydown", keyboardEvent => {
+        if (keyboardEvent.key === "Enter") { keyboardEvent.preventDefault(); text.blur(); }
+        if (keyboardEvent.key === "Escape") { keyboardEvent.preventDefault(); cancelled = true; text.value = event.text; text.blur(); }
+      });
+      text.addEventListener("change", () => {
+        if (cancelled) return;
+        const next = text.value.trim();
+        if (next && next !== event.text) { event.text = next; renderGrid(); void saveEvents(); } else text.value = event.text;
+      });
+      const remove = document.createElement("button");
+      remove.className = "remove";
+      remove.type = "button";
+      remove.innerHTML = CROSS;
+      remove.title = "删除";
+      remove.setAttribute("aria-label", `删除“${event.text}”`);
+      remove.addEventListener("click", () => {
+        const left = (events[key] ?? []).filter(other => other.id !== event.id);
+        if (left.length) events[key] = left; else delete events[key];
+        render();
+        void saveEvents();
+      });
+      line.append(time, text, remove);
+      return line;
+    }
+
+    function renderDay() {
+      const date = parseKey(selected), week = teachingWeek(date), list = eventsOn(selected);
+      $("day-title").textContent = `${date.getMonth() + 1} 月 ${date.getDate()} 日`;
+      $("day-weekday").textContent = `周${WEEKDAYS[(date.getDay() + 6) % 7]}${selected === todayKey ? "，今天" : ""}`;
+      $("day-week").textContent = week ? `第 ${week} 教学周` : "";
+      $("day-week").hidden = !week;
+      $("event-count").textContent = list.length ? `${list.length} 项` : "";
+      $("events").replaceChildren(...list.map(event => eventRow(event, selected)));
+      $("events").hidden = !list.length;
+      $("empty").hidden = list.length > 0;
+    }
+
+    function renderTerm() {
+      const date = termStart && parseKey(termStart);
+      $("term-value").textContent = date ? `${date.getFullYear()} 年 ${date.getMonth() + 1} 月 ${date.getDate()} 日` : "选择日期";
+      $("term").classList.toggle("placeholder", !date);
+      $("clear-term").hidden = !termStart;
+      const week = teachingWeek(new Date());
+      $("term-hint").textContent = termStart ? week ? `本周是第 ${week} 教学周` : "开学前不显示教学周" : "设置后显示教学周";
+    }
+
+    function renderFirstDay() {
+      $("start-monday").setAttribute("aria-pressed", String(firstDay === 1));
+      $("start-sunday").setAttribute("aria-pressed", String(firstDay === 0));
+    }
+
+    function render() { renderGrid(); renderDay(); renderTerm(); renderFirstDay(); }
+
+    function setFirstDay(value) {
+      if (value === firstDay) return;
+      firstDay = value;
+      render();
+      chalklee.storage.set("firstDay", value).then(() => say(""), failed);
+    }
+
+    function setTerm(value) {
+      termStart = value;
+      render();
+      (termStart ? chalklee.storage.set("termStart", termStart) : chalklee.storage.remove("termStart")).then(() => say(""), failed);
+    }
+
+    $("previous").addEventListener("click", () => changeMonth(-1));
+    $("next").addEventListener("click", () => changeMonth(1));
+    $("today").addEventListener("click", () => selectDate(new Date()));
+    $("term").addEventListener("click", () => { if (popoverAnchor === $("term")) closePopover(); else openDatePicker(); });
+    $("clear-term").addEventListener("click", () => setTerm(null));
+    $("start-monday").addEventListener("click", () => setFirstDay(1));
+    $("start-sunday").addEventListener("click", () => setFirstDay(0));
+    $("popover").addEventListener("keydown", event => {
+      if (event.key !== "Escape" && event.key !== "Tab") return;
+      event.preventDefault();
+      closePopover?.();
+      $("term").focus();
+    });
+    document.addEventListener("pointerdown", event => {
+      if (popoverAnchor && event.target !== popoverAnchor && !popoverAnchor.contains(event.target) && !$("popover").contains(event.target)) closePopover();
+    });
+    for (const target of [window, $("events")]) target.addEventListener("scroll", () => closePopover?.());
+    for (const type of ["resize", "blur"]) window.addEventListener(type, () => closePopover?.());
+    timeField($("time"), () => {});
+    $("form").addEventListener("submit", event => {
+      event.preventDefault();
+      const text = $("text").value.trim();
+      if (!text) return;
+      (events[selected] ??= []).push({ id: crypto.randomUUID(), text, time: parseTime($("time").value) ?? "" });
+      $("text").value = "";
+      $("time").value = "";
+      say("");
+      render();
+      void saveEvents();
+      $("text").focus();
+    });
+
+    render();
+    Promise.all([chalklee.storage.get("events"), chalklee.storage.get("termStart"), chalklee.storage.get("firstDay")]).then(([savedEvents, savedTerm, savedFirstDay]) => {
+      events = {};
+      if (savedEvents && typeof savedEvents === "object") {
+        for (const [key, list] of Object.entries(savedEvents)) {
+          if (!validDateKey(key) || !Array.isArray(list)) continue;
+          const valid = list.filter(event => event && typeof event.text === "string" && event.text.trim()).map(event => ({
+            id: typeof event.id === "string" ? event.id : crypto.randomUUID(),
+            text: event.text.trim().slice(0, 100),
+            time: validTime(event.time)
+          }));
+          if (valid.length) events[key] = valid;
+        }
+      }
+      termStart = validDateKey(savedTerm) ? savedTerm : null;
+      firstDay = savedFirstDay === 0 ? 0 : 1;
+      for (const id of ["text", "time", "add", "term", "start-monday", "start-sunday"]) $(id).disabled = false;
+      render();
+    }, failed);
+  </script>
+</body>
+</html>

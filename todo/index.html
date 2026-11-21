@@ -1,0 +1,660 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>待办</title>
+  <style>
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    html, body { height: 100%; }
+    body { margin: 0; color: var(--chalklee-text); background: var(--chalklee-surface); font: 13px/20px -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; }
+    button, input { color: inherit; font: inherit; }
+    button { border: 0; background: transparent; cursor: pointer; }
+    button:disabled, input:disabled { cursor: default; opacity: .5; }
+    button:focus-visible, input:focus-visible { outline: 2px solid var(--chalklee-accent); outline-offset: 2px; }
+    main { width: min(100%, 680px); margin: 0 auto; padding: 24px 24px 80px; }
+    .title { display: flex; align-items: baseline; gap: 8px; margin-bottom: 16px; padding: 0 4px; }
+    .title h1 { margin: 0; font-size: 20px; font-weight: 600; line-height: 28px; }
+    .title time { color: var(--chalklee-muted); font-size: 12px; }
+    .title span { margin-left: auto; color: var(--chalklee-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+    .composer { display: flex; align-items: center; gap: 8px; }
+    .composer input { flex: 1; min-width: 0; height: 32px; padding: 0 10px; border: 0.5px solid var(--chalklee-border); border-radius: 6px; outline: 0; background: var(--chalklee-surface); }
+    .composer input:focus { border-color: var(--chalklee-accent); }
+    .composer input::placeholder { color: var(--chalklee-muted); }
+    .date-field { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; border: 0.5px solid var(--chalklee-border); border-radius: 6px; font-size: 12px; white-space: nowrap; }
+    .date-field:hover:not(:disabled) { background: var(--chalklee-hover); }
+    .date-field[aria-expanded="true"] { border-color: var(--chalklee-accent); }
+    .date-field.placeholder { color: var(--chalklee-muted); }
+    .date-field.suggested { color: var(--chalklee-accent); }
+    .add { flex: none; height: 32px; padding: 0 14px; border-radius: 6px; color: var(--chalklee-on-accent); background: var(--chalklee-accent); font-weight: 500; }
+    .message { margin: 8px 4px 0; color: var(--chalklee-muted); font-size: 12px; line-height: 18px; }
+    .message:empty { display: none; }
+    .group { margin-top: 20px; }
+    .group-head { display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 4px; color: var(--chalklee-muted); font-size: 12px; }
+    .group-head h2 { margin: 0; color: var(--chalklee-text); font-size: 13px; font-weight: 600; }
+    .group.overdue h2 { color: var(--chalklee-danger); }
+    .text-button { flex: none; height: 24px; margin-left: auto; padding: 0 6px; border-radius: 6px; color: var(--chalklee-muted); font-size: 12px; }
+    .text-button:hover { color: var(--chalklee-text); background: var(--chalklee-hover); }
+    ul { margin: 0; padding: 0; list-style: none; }
+    li { display: flex; align-items: center; gap: 10px; min-height: 38px; padding: 0 4px; border-radius: 8px; }
+    li:hover, li:focus-within { background: var(--chalklee-hover); }
+    .check { flex: none; display: grid; place-items: center; width: 18px; height: 18px; padding: 0; border: 1px solid var(--chalklee-muted); border-radius: 50%; color: transparent; }
+    .check:hover { border-color: var(--chalklee-accent); color: var(--chalklee-accent); }
+    li.done .check { border-color: var(--chalklee-accent); color: var(--chalklee-on-accent); background: var(--chalklee-accent); }
+    .text { flex: 1; min-width: 0; height: 30px; padding: 0; border: 0; outline: 0; background: transparent; text-overflow: ellipsis; }
+    .text:focus-visible { outline: 0; }
+    li.done .text { color: var(--chalklee-muted); }
+    .due { flex: none; display: inline-flex; align-items: center; gap: 3px; height: 24px; padding: 0 6px; border-radius: 6px; color: var(--chalklee-muted); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .due:hover:not(:disabled), .due[aria-expanded="true"] { color: var(--chalklee-text); background: var(--chalklee-hover); }
+    .due:disabled { opacity: 1; }
+    .due.overdue { color: var(--chalklee-danger); }
+    .due.quiet { opacity: 0; }
+    li:hover .due.quiet, li:focus-within .due.quiet, .due.quiet[aria-expanded="true"] { opacity: 1; }
+    .done-at { flex: none; padding: 0 6px; color: var(--chalklee-muted); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    /* Takes no room until the row is in use, so dates line up with the right edge. */
+    .remove { flex: none; display: grid; place-items: center; width: 0; height: 24px; margin-left: -10px; padding: 0; overflow: hidden; border-radius: 6px; color: var(--chalklee-muted); }
+    li:hover .remove, li:focus-within .remove { width: 24px; margin-left: 0; }
+    .remove:hover { color: var(--chalklee-text); background: var(--chalklee-hover); }
+    .empty { padding: 64px 16px; color: var(--chalklee-muted); text-align: center; }
+    .finished-bar { display: flex; align-items: center; gap: 6px; margin-top: 20px; padding-right: 4px; }
+    .finished { flex: 1; display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 4px; border-radius: 6px; color: var(--chalklee-muted); font-size: 12px; text-align: left; }
+    .finished:hover { color: var(--chalklee-text); background: var(--chalklee-hover); }
+    .finished[aria-expanded="true"] svg { transform: rotate(90deg); }
+    .popover { position: fixed; z-index: 10; width: 226px; padding: 6px; border: 0.5px solid var(--chalklee-border); border-radius: 12px; background: var(--chalklee-surface); box-shadow: 0 10px 28px rgb(0 0 0 / .16), 0 1px 3px rgb(0 0 0 / .08); font-size: 12px; }
+    .picker-quick, .picker-repeat { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px; }
+    .picker-quick { padding-bottom: 5px; border-bottom: 0.5px solid var(--chalklee-border); }
+    .picker-repeat { margin-top: 5px; padding-top: 5px; border-top: 0.5px solid var(--chalklee-border); }
+    .picker-quick button, .picker-repeat button, .picker-clear { height: 30px; padding: 0; border-radius: 6px; white-space: nowrap; }
+    .picker-quick button:hover, .picker-repeat button:hover, .picker-clear:hover { background: var(--chalklee-hover); }
+    .picker-repeat button[aria-pressed="true"], .picker-repeat button[aria-pressed="true"]:hover { background: var(--chalklee-selection); }
+    .picker-head { display: flex; align-items: center; height: 30px; margin-top: 5px; padding-left: 8px; }
+    .picker-head strong { flex: 1; font-size: 13px; font-weight: 600; }
+    .picker-nav { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border-radius: 6px; color: var(--chalklee-muted); }
+    .picker-nav:hover { color: var(--chalklee-text); background: var(--chalklee-hover); }
+    .picker-week, .picker-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); text-align: center; }
+    .picker-week { height: 26px; align-items: center; color: var(--chalklee-muted); }
+    .picker-day { height: 30px; padding: 0; border-radius: 6px; font-variant-numeric: tabular-nums; }
+    .picker-day:hover { background: var(--chalklee-hover); }
+    .picker-day:focus-visible { outline-offset: -2px; }
+    .picker-day.outside { color: var(--chalklee-muted); opacity: .6; }
+    .picker-day.current { color: var(--chalklee-accent); font-weight: 600; }
+    .picker-day[aria-selected="true"], .picker-day[aria-selected="true"]:hover { color: var(--chalklee-on-accent); background: var(--chalklee-accent); opacity: 1; }
+    .picker-clear { width: 100%; margin-top: 5px; border-top: 0.5px solid var(--chalklee-border); border-radius: 0; color: var(--chalklee-muted); }
+    .picker-clear:hover { border-radius: 0 0 6px 6px; color: var(--chalklee-text); }
+    .toast { position: fixed; left: 50%; bottom: 24px; z-index: 20; display: flex; align-items: center; gap: 12px; max-width: calc(100% - 32px); height: 36px; padding: 0 4px 0 14px; border: 0.5px solid var(--chalklee-border); border-radius: 10px; background: var(--chalklee-surface); box-shadow: 0 10px 28px rgb(0 0 0 / .16), 0 1px 3px rgb(0 0 0 / .08); transform: translateX(-50%); }
+    .toast span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .toast button { flex: none; height: 28px; padding: 0 10px; border-radius: 6px; color: var(--chalklee-accent); font-weight: 500; }
+    .toast button:hover { background: var(--chalklee-hover); }
+    @media (hover: none) { .remove { width: 24px; margin-left: 0; } .due.quiet { opacity: 1; } }
+    @media (max-width: 520px) { main { padding: 16px 16px 72px; } .composer { flex-wrap: wrap; } .composer input { flex-basis: 100%; } .add { margin-left: auto; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header class="title">
+      <h1>待办</h1>
+      <time id="today"></time>
+      <span id="summary">正在读取…</span>
+    </header>
+    <form class="composer" id="form">
+      <input id="input" type="text" maxlength="200" placeholder="输入要做的事，如“周五前交教案”" aria-label="添加待办" autocomplete="off" disabled>
+      <button class="date-field placeholder" id="date" type="button" aria-haspopup="dialog" aria-expanded="false" disabled><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v4M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg><span id="date-label"></span></button>
+      <button class="add" id="add" type="submit" disabled>添加</button>
+    </form>
+    <p class="message" id="message" role="status"></p>
+    <div id="open"></div>
+    <p class="empty" id="empty" hidden></p>
+    <div class="finished-bar" id="finished-bar" hidden>
+      <button class="finished" id="finished" type="button" aria-expanded="false">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+        <span id="finished-count"></span>
+      </button>
+      <button class="text-button" id="clear-done" type="button" hidden>清除</button>
+    </div>
+    <ul id="done" aria-label="已完成" hidden></ul>
+  </main>
+  <div class="popover" id="popover" role="dialog" aria-label="选择日期" hidden></div>
+  <div class="toast" id="toast" role="status" hidden><span id="toast-text"></span><button id="undo" type="button">撤销</button></div>
+  <script>
+    const $ = id => document.getElementById(id);
+    const CHECK = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
+    const CROSS = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>';
+    const REPEAT_ICON = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>';
+    const CHEVRON = direction => `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${direction < 0 ? "m15 18-6-6 6-6" : "m9 18 6-6-6-6"}"/></svg>`;
+    const WEEKDAYS = ["一", "二", "三", "四", "五", "六", "日"];
+    const WEEKS_SHOWN = 6;
+    const DAY_MS = 86_400_000;
+    const SETTLE_MS = 1200;
+    const UNDO_MS = 6000;
+    const MAX_PASTED = 100;
+    const pad = value => String(value).padStart(2, "0");
+    const dateKey = date => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+    const parseKey = key => { const [year, month, day] = key.split("-").map(Number); return new Date(year, month - 1, day); };
+    const validDateKey = key => typeof key === "string" && /^\d{4}-\d{2}-\d{2}$/.test(key) && dateKey(parseKey(key)) === key;
+    const dayNumber = date => Math.floor(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / DAY_MS);
+    const daysFromToday = key => dayNumber(parseKey(key)) - dayNumber(new Date());
+    const addDays = (date, days) => new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
+    const mondayOf = date => addDays(date, -((date.getDay() + 6) % 7));
+    const inMonth = (year, month, day) => new Date(year, month, Math.min(day, new Date(year, month + 1, 0).getDate()));
+    const weekdayName = date => `周${WEEKDAYS[(date.getDay() + 6) % 7]}`;
+    const element = (tag, className, textContent = "") => Object.assign(document.createElement(tag), { className, textContent });
+    const GROUPS = [
+      { name: "已过期", overdue: true, has: item => item.date && daysFromToday(item.date) < 0 },
+      { name: "今天", has: item => item.date && daysFromToday(item.date) === 0 },
+      { name: "以后", has: item => item.date && daysFromToday(item.date) > 0 },
+      { name: "未定日期", has: item => !item.date }
+    ];
+    const REPEATS = ["daily", "weekdays", "weekly", "biweekly", "monthly"];
+    const NO_DATE = { date: null, repeat: null };
+    let items = [];
+    /** Chosen in the composer's date picker; wins over a date read from the text. */
+    let picked = null;
+    let recognized = null;
+    let shownDay = dateKey(new Date());
+    let closePopover = null;
+    let popoverAnchor = null;
+    /** Items just checked off stay where they were for a moment, so a slip of the mouse is easy to take back. */
+    const settling = new Map();
+    let settleTimer = null;
+    let undoItems = null;
+    let undoTimer = null;
+
+    const say = text => { $("message").textContent = text; };
+    const failed = error => say(error.message);
+    const find = id => items.find(item => item.id === id);
+    const persist = () => chalklee.storage.set("items", items).then(() => say(""), failed);
+    /** Saves a change made by hand. A newer change replaces what the undo bar would restore. */
+    const save = () => { dismissUndo(); return persist(); };
+
+    function dateLabel(key) {
+      const days = daysFromToday(key), date = parseKey(key);
+      if (days >= -1 && days <= 2) return ["昨天", "今天", "明天", "后天"][days + 1];
+      if (days > 2 && days < 7) return weekdayName(date);
+      return `${date.getFullYear() === new Date().getFullYear() ? "" : `${date.getFullYear()}年`}${date.getMonth() + 1}月${date.getDate()}日`;
+    }
+
+    function repeatLabel(every, from) {
+      const date = parseKey(from);
+      return { daily: "每天", weekdays: "工作日", weekly: `每${weekdayName(date)}`, biweekly: "每两周", monthly: `每月${date.getDate()}日` }[every];
+    }
+
+    /** The first date in the series after both its current date and today. */
+    function nextOccurrence(item) {
+      const from = parseKey(item.repeat.from);
+      const after = Math.max(dayNumber(parseKey(item.date)), dayNumber(new Date()));
+      const every = item.repeat.every;
+      if (every === "daily" || every === "weekdays") {
+        let date = addDays(parseKey(item.date), after - dayNumber(parseKey(item.date)) + 1);
+        while (every === "weekdays" && date.getDay() % 6 === 0) date = addDays(date, 1);
+        return dateKey(date);
+      }
+      if (every === "weekly" || every === "biweekly") {
+        const step = every === "weekly" ? 7 : 14;
+        return dateKey(addDays(from, (Math.floor((after - dayNumber(from)) / step) + 1) * step));
+      }
+      let months = 1;
+      while (dayNumber(inMonth(from.getFullYear(), from.getMonth() + months, from.getDate())) <= after) months++;
+      return dateKey(inMonth(from.getFullYear(), from.getMonth() + months, from.getDate()));
+    }
+
+    // Dates said the way teachers write them. Only new items read their text; what was typed is kept as is.
+    const WEEK = "(?:周|星期|礼拜)", DAY = "([一二三四五六日天])", ONCE = "(?![次遍个节份])";
+    const DAY_OF = { 日: 0, 天: 0, 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6 };
+    const coming = (today, day) => addDays(today, (DAY_OF[day] - today.getDay() + 7) % 7);
+    const thisWeek = (today, day) => addDays(mondayOf(today), (DAY_OF[day] + 6) % 7);
+    const workday = date => addDays(date, date.getDay() === 6 ? 2 : date.getDay() === 0 ? 1 : 0);
+    const DATE_RULES = [
+      [/每个?工作日/, today => [workday(today), "weekdays"]],
+      [new RegExp(`(?:每两|隔)${WEEK}${DAY}?`), (today, day) => [day ? coming(today, day) : today, "biweekly"]],
+      [new RegExp(`每个?${WEEK}${DAY}${ONCE}`), (today, day) => [coming(today, day), "weekly"]],
+      [/每个?月(\d{1,2})[日号]/, (today, day) => {
+        day = Number(day);
+        if (day < 1 || day > 31) return null;
+        const date = inMonth(today.getFullYear(), today.getMonth(), day);
+        return [date < today ? inMonth(today.getFullYear(), today.getMonth() + 1, day) : date, "monthly"];
+      }],
+      [/每天/, today => [today, "daily"]],
+      [/(\d{1,2})月(\d{1,2})[日号]/, (today, month, day) => {
+        const on = year => { const date = new Date(year, month - 1, day); return date.getMonth() === month - 1 ? date : null; };
+        // A date long past means the coming year, as in December writing about January.
+        const date = on(today.getFullYear());
+        if (date && dayNumber(date) >= dayNumber(today) - 60) return [date];
+        const next = on(today.getFullYear() + 1);
+        return next && [next];
+      }],
+      [/大后天/, today => [addDays(today, 3)]],
+      [/后天/, today => [addDays(today, 2)]],
+      [/明天|明日|明早|明晚/, today => [addDays(today, 1)]],
+      [/今天|今日|今早|今晚/, today => [today]],
+      [new RegExp(`下个?${WEEK}${DAY}${ONCE}`), (today, day) => [addDays(thisWeek(today, day), 7)]],
+      [new RegExp(`(?:本|这个?)${WEEK}${DAY}${ONCE}`), (today, day) => [thisWeek(today, day)]],
+      [new RegExp(`${WEEK}${DAY}${ONCE}`), (today, day) => [coming(today, day)]],
+      [new RegExp(`下个?${WEEK}`), today => [addDays(mondayOf(today), 7)]],
+      [/月底/, today => [new Date(today.getFullYear(), today.getMonth() + 1, 0)]]
+    ];
+
+    function recognize(text) {
+      const now = new Date(), today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const words = text.replace(new RegExp(`上个?${WEEK}${DAY}?`, "g"), "");
+      for (const [pattern, read] of DATE_RULES) {
+        const match = words.match(pattern);
+        const found = match && read(today, ...match.slice(1));
+        if (!found) continue;
+        const date = dateKey(found[0]);
+        return { date, repeat: found[1] ? { every: found[1], from: date } : null };
+      }
+      return null;
+    }
+
+    const LIST_MARK = /^\s*(?:[-*+•·●○◦▪□☐☑✓✔]\s*|\[[ xX]?\]\s*|[(（]?\d{1,2}[)）]\s*|\d{1,2}[.、．](?!\d)\s*|[①-⑳]\s*|[一二三四五六七八九十]{1,3}、\s*)+/;
+    const pastedLines = text => text.split(/\r?\n/).map(line => line.replace(LIST_MARK, "").trim().slice(0, 200)).filter(Boolean);
+
+    function offerUndo(message, before) {
+      undoItems = before;
+      $("toast-text").textContent = message;
+      $("toast").hidden = false;
+      clearTimeout(undoTimer);
+      undoTimer = setTimeout(dismissUndo, UNDO_MS);
+    }
+
+    function dismissUndo() {
+      undoItems = null;
+      clearTimeout(undoTimer);
+      $("toast").hidden = true;
+    }
+
+    function undo() {
+      if (!undoItems) return;
+      items = undoItems;
+      settling.clear();
+      render();
+      void save();
+    }
+
+    /** Changes a group of items at once, keeping the list as it was for the undo bar. */
+    function changeAll(change) {
+      const before = structuredClone(items);
+      const message = change();
+      if (!message) return;
+      render();
+      void save();
+      offerUndo(message, before);
+    }
+
+    function settleLater() {
+      clearTimeout(settleTimer);
+      settleTimer = setTimeout(() => {
+        if (closePopover) { settleLater(); return; }
+        settling.clear();
+        render();
+      }, SETTLE_MS);
+    }
+
+    function toggle(id) {
+      const item = find(id);
+      if (!item) return;
+      if (settling.has(id)) {
+        settling.get(id).revert();
+        settling.delete(id);
+      } else if (item.done) {
+        Object.assign(item, { done: false, doneAt: null });
+        items = [item, ...items.filter(other => other !== item)];
+      } else {
+        const shown = { ...item }, doneAt = new Date().toISOString();
+        if (item.repeat) {
+          // The series moves to its next date; the one just done goes to the finished list.
+          const copy = { id: crypto.randomUUID(), text: item.text, done: true, date: item.date, repeat: null, doneAt };
+          items = [copy, ...items];
+          item.date = nextOccurrence(item);
+          settling.set(id, { shown, copy: copy.id, revert: () => { item.date = shown.date; items = items.filter(other => other.id !== copy.id); } });
+        } else {
+          Object.assign(item, { done: true, doneAt });
+          settling.set(id, { shown, revert: () => Object.assign(item, { done: false, doneAt: null }) });
+        }
+        settleLater();
+      }
+      render();
+      void save();
+    }
+
+    function setDate(id, choice) {
+      const item = find(id);
+      if (!item || (choice.date === item.date && JSON.stringify(choice.repeat) === JSON.stringify(item.repeat))) return;
+      Object.assign(item, choice);
+      render();
+      void save();
+    }
+
+    function showPopover(anchor, content) {
+      closePopover?.();
+      const box = $("popover"), edge = 8, gap = 4;
+      box.replaceChildren(...content);
+      box.hidden = false;
+      const area = anchor.getBoundingClientRect();
+      const fitsBelow = area.bottom + gap + box.offsetHeight <= window.innerHeight - edge;
+      box.style.top = `${fitsBelow ? area.bottom + gap : Math.max(edge, area.top - gap - box.offsetHeight)}px`;
+      box.style.left = `${Math.max(edge, Math.min(area.right - box.offsetWidth, window.innerWidth - box.offsetWidth - edge))}px`;
+      popoverAnchor = anchor;
+      anchor.setAttribute("aria-expanded", "true");
+      closePopover = () => {
+        box.hidden = true;
+        box.replaceChildren();
+        anchor.setAttribute("aria-expanded", "false");
+        closePopover = popoverAnchor = null;
+      };
+    }
+
+    function steppedDate(key, date) {
+      const days = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 }[key];
+      if (days) return addDays(date, days);
+      if (key === "PageUp" || key === "PageDown") return inMonth(date.getFullYear(), date.getMonth() + (key === "PageUp" ? -1 : 1), date.getDate());
+      if (key !== "Home" && key !== "End") return null;
+      return addDays(mondayOf(date), key === "End" ? 6 : 0);
+    }
+
+    /** Every choice in the picker is final and closes it. A new date carries the repeat along with it. */
+    function openDatePicker(anchor, current, choose) {
+      const today = new Date();
+      let active = current.date ? parseKey(current.date) : today;
+      const finish = choice => { closePopover(); choose(choice); };
+      const onDate = key => ({ date: key, repeat: current.repeat ? { every: current.repeat.every, from: key } : null });
+      const textButton = (name, onClick) => {
+        const button = element("button", "", name);
+        button.type = "button";
+        button.addEventListener("click", onClick);
+        return button;
+      };
+      const quick = element("div", "picker-quick");
+      quick.append(...[["今天", today], ["明天", addDays(today, 1)], ["下周一", addDays(mondayOf(today), 7)]].map(([name, date]) => {
+        const button = textButton(name, () => finish(onDate(dateKey(date))));
+        button.dataset.quick = name;
+        return button;
+      }));
+      const title = element("strong", "");
+      const shift = (direction, label) => {
+        const button = element("button", "picker-nav");
+        button.type = "button";
+        button.innerHTML = CHEVRON(direction);
+        button.title = label;
+        button.setAttribute("aria-label", label);
+        button.addEventListener("click", () => {
+          active = inMonth(active.getFullYear(), active.getMonth() + direction, active.getDate());
+          draw();
+        });
+        return button;
+      };
+      const head = element("div", "picker-head");
+      head.append(title, shift(-1, "上个月"), shift(1, "下个月"));
+      const week = element("div", "picker-week");
+      week.setAttribute("aria-hidden", "true");
+      week.append(...WEEKDAYS.map(name => element("span", "", name)));
+      const grid = element("div", "picker-grid");
+      const draw = focus => {
+        title.textContent = `${active.getFullYear()} 年 ${active.getMonth() + 1} 月`;
+        const first = mondayOf(new Date(active.getFullYear(), active.getMonth(), 1)), activeKey = dateKey(active), todayKey = dateKey(today);
+        grid.replaceChildren(...Array.from({ length: WEEKS_SHOWN * 7 }, (_, index) => {
+          const date = addDays(first, index), key = dateKey(date);
+          const day = element("button", `picker-day${date.getMonth() === active.getMonth() ? "" : " outside"}${key === todayKey ? " current" : ""}`, date.getDate());
+          day.type = "button";
+          day.tabIndex = key === activeKey ? 0 : -1;
+          day.dataset.date = key;
+          day.setAttribute("aria-selected", String(key === current.date));
+          day.setAttribute("aria-label", `${date.getFullYear()} 年 ${date.getMonth() + 1} 月 ${date.getDate()} 日`);
+          day.addEventListener("click", () => finish(onDate(key)));
+          day.addEventListener("keydown", event => {
+            const next = steppedDate(event.key, date);
+            if (!next) return;
+            event.preventDefault();
+            active = next;
+            draw(true);
+          });
+          return day;
+        }));
+        if (focus) grid.querySelector('[tabindex="0"]')?.focus();
+      };
+      draw();
+      // A repeat without a date starts today, or on the next workday for “工作日”.
+      const base = current.date ?? dateKey(today);
+      const repeat = element("div", "picker-repeat");
+      repeat.setAttribute("role", "group");
+      repeat.setAttribute("aria-label", "重复");
+      repeat.append(...["", ...REPEATS].map(every => {
+        const button = textButton(every ? repeatLabel(every, base) : "不重复", () => {
+          const date = current.date ?? (every === "weekdays" ? dateKey(workday(today)) : base);
+          finish(every ? { date, repeat: { every, from: date } } : { date: current.date, repeat: null });
+        });
+        button.dataset.repeat = every;
+        button.setAttribute("aria-pressed", String((current.repeat?.every ?? "") === every));
+        return button;
+      }));
+      const clear = textButton("不定日期", () => finish(NO_DATE));
+      clear.className = "picker-clear";
+      showPopover(anchor, [quick, head, week, grid, repeat, clear]);
+      grid.querySelector('[tabindex="0"]')?.focus();
+    }
+
+    function dueContent(button, item) {
+      button.replaceChildren();
+      if (item.repeat) button.insertAdjacentHTML("beforeend", REPEAT_ICON);
+      button.append(item.date ? dateLabel(item.date) : "设日期");
+      button.title = item.repeat ? repeatLabel(item.repeat.every, item.repeat.from) : "";
+    }
+
+    function row(item, checking = false) {
+      const id = item.id;
+      const line = element("li", item.done || checking ? "done" : "");
+      line.dataset.id = id;
+      const check = element("button", "check");
+      check.type = "button";
+      check.innerHTML = CHECK;
+      check.setAttribute("aria-label", item.done || checking ? `将“${item.text}”标记为未完成` : `将“${item.text}”标记为已完成`);
+      check.addEventListener("click", () => toggle(id));
+      const text = element("input", "text");
+      text.value = item.text;
+      text.maxLength = 200;
+      text.setAttribute("aria-label", "待办内容");
+      let cancelled = false;
+      text.addEventListener("focus", () => { cancelled = false; });
+      text.addEventListener("keydown", event => {
+        if (event.key === "Enter") { event.preventDefault(); text.blur(); }
+        if (event.key === "Escape") { event.preventDefault(); cancelled = true; text.value = item.text; text.blur(); }
+      });
+      text.addEventListener("change", () => {
+        const target = find(id), next = text.value.trim();
+        if (cancelled || !target) return;
+        if (next && next !== target.text) { target.text = item.text = next; void save(); } else text.value = target.text;
+      });
+      line.append(check, text);
+      if (item.done && !checking) {
+        if (item.doneAt) line.append(element("span", "done-at", dateLabel(dateKey(new Date(item.doneAt)))));
+      } else {
+        const days = item.date ? daysFromToday(item.date) : null;
+        const quiet = !item.repeat && (!item.date || days === 0);
+        const due = element("button", `due${days < 0 ? " overdue" : ""}${quiet ? " quiet" : ""}`);
+        dueContent(due, item);
+        due.type = "button";
+        due.disabled = checking;
+        due.setAttribute("aria-haspopup", "dialog");
+        due.setAttribute("aria-expanded", "false");
+        due.setAttribute("aria-label", `修改“${item.text}”的日期`);
+        due.addEventListener("click", () => {
+          if (popoverAnchor === due) { closePopover(); return; }
+          openDatePicker(due, item, choice => {
+            setDate(id, choice);
+            document.querySelector(`li[data-id="${id}"] .due`)?.focus();
+          });
+        });
+        line.append(due);
+      }
+      const remove = element("button", "remove");
+      remove.type = "button";
+      remove.innerHTML = CROSS;
+      remove.title = "删除";
+      remove.setAttribute("aria-label", `删除“${item.text}”`);
+      remove.addEventListener("click", () => changeAll(() => {
+        items = items.filter(other => other.id !== id);
+        settling.delete(id);
+        return `已删除“${item.text}”`;
+      }));
+      line.append(remove);
+      return line;
+    }
+
+    function renderOpen(open) {
+      const groups = GROUPS.map(group => ({ ...group, list: open.filter(group.has) })).filter(group => group.list.length);
+      $("open").replaceChildren(...groups.map(group => {
+        const section = element("section", `group${group.overdue ? " overdue" : ""}`);
+        const list = document.createElement("ul");
+        list.setAttribute("aria-label", group.name);
+        // Stable, so undated items keep the order they were added in.
+        list.append(...[...group.list].sort((a, b) => (a.date ?? "").localeCompare(b.date ?? "")).map(item => row(item, settling.has(item.id))));
+        if (groups.length > 1 || group.has !== GROUPS[3].has) {
+          const head = element("div", "group-head");
+          head.append(element("h2", "", group.name), element("span", "", String(group.list.length)));
+          if (group.overdue) {
+            const move = element("button", "text-button", "移到今天");
+            move.type = "button";
+            move.id = "move-overdue";
+            move.addEventListener("click", moveOverdueToToday);
+            head.append(move);
+          }
+          section.append(head);
+        }
+        section.append(list);
+        return section;
+      }));
+    }
+
+    function render() {
+      const now = new Date();
+      const hidden = new Set([...settling.values()].map(entry => entry.copy).filter(Boolean));
+      const open = items.filter(item => !item.done || settling.has(item.id)).map(item => settling.get(item.id)?.shown ?? item);
+      const done = items.filter(item => item.done && !settling.has(item.id) && !hidden.has(item.id)).sort((a, b) => (b.doneAt ?? "").localeCompare(a.doneAt ?? ""));
+      const remaining = open.length - settling.size;
+      shownDay = dateKey(now);
+      $("today").textContent = `${now.getMonth() + 1} 月 ${now.getDate()} 日 ${weekdayName(now)}`;
+      $("summary").textContent = remaining ? `${remaining} 项待完成` : items.length ? "全部完成" : "";
+      renderComposer();
+      renderOpen(open);
+      $("done").replaceChildren(...done.map(item => row(item)));
+      $("empty").hidden = open.length > 0;
+      $("empty").textContent = items.length ? "待办都完成了" : "还没有待办";
+      $("finished-bar").hidden = !done.length;
+      $("finished-count").textContent = `已完成 ${done.length} 项`;
+      if (!done.length) { $("done").hidden = true; $("finished").setAttribute("aria-expanded", "false"); }
+      $("clear-done").hidden = $("done").hidden;
+    }
+
+    function composerChoice() { return picked ?? recognized ?? NO_DATE; }
+
+    function renderComposer() {
+      const choice = composerChoice();
+      $("date-label").textContent = choice.repeat ? repeatLabel(choice.repeat.every, choice.repeat.from) : choice.date ? dateLabel(choice.date) : "日期";
+      $("date").classList.toggle("placeholder", !choice.date);
+      $("date").classList.toggle("suggested", !picked && Boolean(recognized));
+    }
+
+    const openOverdue = () => items.filter(item => !item.done && !settling.has(item.id) && item.date && daysFromToday(item.date) < 0);
+
+    function moveOverdueToToday() {
+      changeAll(() => {
+        const moved = openOverdue(), today = dateKey(new Date());
+        for (const item of moved) item.date = today;
+        return moved.length && `已将 ${moved.length} 项移到今天`;
+      });
+    }
+
+    $("form").addEventListener("submit", event => {
+      event.preventDefault();
+      const text = $("input").value.trim();
+      if (!text) return;
+      items.unshift({ id: crypto.randomUUID(), text, done: false, doneAt: null, ...composerChoice() });
+      $("input").value = "";
+      picked = recognized = null;
+      say("");
+      render();
+      void save();
+    });
+    $("input").addEventListener("input", () => { recognized = recognize($("input").value); renderComposer(); });
+    // Several lines pasted at once, such as a notice from a group chat, become one item each.
+    $("input").addEventListener("paste", event => {
+      const lines = pastedLines(event.clipboardData?.getData("text/plain") ?? "");
+      if (lines.length < 2) return;
+      event.preventDefault();
+      const fallback = picked ?? NO_DATE;
+      changeAll(() => {
+        const added = lines.slice(0, MAX_PASTED).map(text => ({ id: crypto.randomUUID(), text, done: false, doneAt: null, ...(recognize(text) ?? fallback) }));
+        items = [...added, ...items];
+        picked = null;
+        return `已添加 ${added.length} 项`;
+      });
+    });
+    $("date").addEventListener("click", () => {
+      if (popoverAnchor === $("date")) { closePopover(); return; }
+      openDatePicker($("date"), composerChoice(), choice => { picked = choice; renderComposer(); $("input").focus(); });
+    });
+    $("finished").addEventListener("click", () => {
+      const showing = $("done").hidden;
+      $("done").hidden = !showing;
+      $("clear-done").hidden = !showing;
+      $("finished").setAttribute("aria-expanded", String(showing));
+    });
+    $("clear-done").addEventListener("click", () => changeAll(() => {
+      const kept = items.filter(item => !item.done || settling.has(item.id));
+      const cleared = items.length - kept.length;
+      items = kept;
+      return cleared && `已清除 ${cleared} 项`;
+    }));
+    $("undo").addEventListener("click", undo);
+    $("popover").addEventListener("keydown", event => {
+      if (event.key === "Tab") {
+        // Stays inside the picker; the days take one stop between them.
+        event.preventDefault();
+        const stops = [...$("popover").querySelectorAll("button")].filter(button => button.tabIndex >= 0);
+        const index = stops.indexOf(document.activeElement);
+        stops[(index + (event.shiftKey ? -1 : 1) + stops.length) % stops.length]?.focus();
+        return;
+      }
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      const anchor = popoverAnchor;
+      closePopover?.();
+      anchor?.focus();
+    });
+    document.addEventListener("keydown", event => {
+      if (!undoItems || !(event.metaKey || event.ctrlKey) || event.shiftKey || event.key.toLowerCase() !== "z") return;
+      // Text being typed keeps its own undo.
+      const typing = document.activeElement?.tagName === "INPUT" && document.activeElement.value;
+      if (typing) return;
+      event.preventDefault();
+      undo();
+    });
+    document.addEventListener("pointerdown", event => {
+      if (popoverAnchor && !popoverAnchor.contains(event.target) && !$("popover").contains(event.target)) closePopover();
+    });
+    window.addEventListener("resize", () => closePopover?.());
+    window.addEventListener("blur", () => closePopover?.());
+    // A page left open overnight moves today's items along with the date.
+    window.addEventListener("focus", () => { if (dateKey(new Date()) !== shownDay) render(); });
+
+    render();
+    chalklee.storage.get("items").then(saved => {
+      items = Array.isArray(saved) ? saved.filter(item => item && typeof item.text === "string" && item.text.trim()).map(item => {
+        const date = validDateKey(item.date) ? item.date : null;
+        const repeat = date && REPEATS.includes(item.repeat?.every) && validDateKey(item.repeat.from) ? { every: item.repeat.every, from: item.repeat.from } : null;
+        const done = Boolean(item.done);
+        return {
+          id: typeof item.id === "string" ? item.id : crypto.randomUUID(),
+          text: item.text.trim().slice(0, 200),
+          done,
+          doneAt: done && typeof item.doneAt === "string" && !Number.isNaN(Date.parse(item.doneAt)) ? item.doneAt : null,
+          date,
+          repeat
+        };
+      }) : [];
+      for (const id of ["input", "date", "add"]) $(id).disabled = false;
+      render();
+    }, failed);
+  </script>
+</body>
+</html>

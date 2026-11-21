@@ -1,0 +1,13 @@
+{
+  "$schema": "https://raw.githubusercontent.com/seven0x16/chalklee/main/docs/plugin-manifest.schema.json",
+  "id": "your-name.my-plugin",
+  "publisher": "your-name",
+  "name": "我的插件",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "summary": "一句话说明这个插件做什么",
+  "author": "你的名字",
+  "license": "MIT",
+  "entry": "index.html",
+  "permissions": []
+}

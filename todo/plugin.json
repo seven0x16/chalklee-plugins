@@ -1,0 +1,12 @@
+{
+  "id": "chalklee.todo",
+  "publisher": "chalklee",
+  "name": "待办",
+  "version": "0.1.0",
+  "apiVersion": 1,
+  "summary": "记下要做的事",
+  "author": "ChalkLee",
+  "license": "MIT",
+  "entry": "index.html",
+  "permissions": []
+}
