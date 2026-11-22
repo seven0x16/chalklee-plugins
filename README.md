@@ -1,8 +1,11 @@
 # ChalkLee 插件
 
-在 ChalkLee 插件中心使用的小工具。
+这里是 [ChalkLee](https://github.com/seven0x16/chalklee)（开源本地题库与备课工具）的插件仓库，存放运行在 ChalkLee 插件中心里的小工具和插件模板。
 
-## 下载和安装
+> [!IMPORTANT]
+> **如果你要下载或了解 ChalkLee 软件本身，请前往主仓库 [seven0x16/chalklee](https://github.com/seven0x16/chalklee)**，查看功能介绍并[下载安装](https://github.com/seven0x16/chalklee#下载安装)（支持 macOS 和 Windows）。本仓库只包含插件，不含 ChalkLee 安装包。
+
+## 下载和安装插件
 
 下面的链接总是下载最新版本；各版本见 [Releases](https://github.com/seven0x16/chalklee-plugins/releases)。
 
